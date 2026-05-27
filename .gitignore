@@ -4,3 +4,9 @@ __pycache__/
 .venv/
 external/
 outputs/
+.env
+dataset/.venv/
+dataset/data/raw/
+dataset/data/processed/
+dataset/data/cache/
+dataset/data/fetch_log.txt

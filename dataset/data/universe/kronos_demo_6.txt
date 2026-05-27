@@ -1,0 +1,7 @@
+# Five large-cap stocks + S&P 500 ETF (SPY)
+AAPL
+MSFT
+NVDA
+GOOGL
+AMZN
+SPY

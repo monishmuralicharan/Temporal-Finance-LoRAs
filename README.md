@@ -4,6 +4,11 @@ Kronos-focused scaffold for testing temporal LoRA adaptation on financial
 OHLCV/K-line forecasting. The current repo surface is intentionally narrow:
 run Kronos on Modal, pull prediction artifacts locally, and grade the output.
 
+## Dataset branch (`dataset`)
+
+The `dataset` branch adds Massive.com download tooling and Kronos-ready demo
+CSVs (5 stocks + SPY, Jan 2025–Apr 2026) under [`dataset/`](dataset/README.md).
+
 ## Setup
 
 ```bash
