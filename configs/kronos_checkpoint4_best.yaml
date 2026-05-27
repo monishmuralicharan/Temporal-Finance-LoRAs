@@ -1,0 +1,34 @@
+# Best Kronos smoke config from the ordered fix experiments.
+# This is still a strided smoke benchmark. Set eval_stride: 1 for a full run.
+ticker: AAPL
+tickers:
+  - AAPL
+  - MSFT
+  - NVDA
+  - AMZN
+  - GOOGL
+  - META
+  - JPM
+  - XOM
+  - UNH
+  - SPY
+start_date: 2015-01-01
+eval_start_date: 2020-01-01
+end_date: 2024-12-31
+context_length: 512
+forecast_horizon: 5
+target_column: Adj Close
+output_dir: outputs/kronos_checkpoint4_best
+batch_size: 32
+eval_stride: 21
+model_id: NeoQuasar/Kronos-small
+tokenizer_id: NeoQuasar/Kronos-Tokenizer-base
+kronos_cache_dir:
+device: auto
+temperature: 1.0
+top_k: 1
+top_p: 1.0
+sample_count: 1
+clip: 5.0
+random_seed: 42
+use_adjusted_ohlc: true

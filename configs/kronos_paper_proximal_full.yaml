@@ -1,0 +1,66 @@
+# Paper-proximal Kronos benchmark using public models only.
+# Run the stride-21 config first; use the full config after sanity checks.
+ticker: AAPL
+tickers:
+  - AAPL
+  - MSFT
+  - NVDA
+  - AMZN
+  - GOOGL
+  - META
+  - TSLA
+  - AVGO
+  - AMD
+  - NFLX
+  - CRM
+  - ORCL
+  - CSCO
+  - ADBE
+  - JPM
+  - BAC
+  - V
+  - MA
+  - WFC
+  - UNH
+  - LLY
+  - JNJ
+  - MRK
+  - ABBV
+  - TMO
+  - XOM
+  - CVX
+  - COP
+  - HD
+  - COST
+  - WMT
+  - PG
+  - KO
+  - PEP
+  - SPY
+  - QQQ
+  - IWM
+  - DIA
+  - XLK
+  - XLF
+  - XLE
+  - XLV
+start_date: 2015-01-01
+eval_start_date: 2020-01-01
+end_date: 2024-12-31
+context_length: 512
+forecast_horizon: 5
+target_column: Adj Close
+output_dir: outputs/kronos_paper_proximal/base_sample10_full
+batch_size: 8
+eval_stride: 1
+model_id: NeoQuasar/Kronos-base
+tokenizer_id: NeoQuasar/Kronos-Tokenizer-base
+kronos_cache_dir:
+device: auto
+temperature: 0.6
+top_k: 0
+top_p: 0.9
+sample_count: 10
+clip: 5.0
+random_seed: 42
+use_adjusted_ohlc: true

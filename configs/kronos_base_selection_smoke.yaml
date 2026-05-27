@@ -1,0 +1,111 @@
+# Manifest-driven Kronos base model selection sweep.
+name: kronos_base_selection_smoke
+stage: smoke
+base_config: configs/kronos_paper_proximal_smoke.yaml
+output_dir: outputs/kronos_base_selection/smoke
+enforce_ridge_gate: false
+references:
+  current_kronos_metrics: outputs/kronos_checkpoint4_best/metrics.json
+  ridge_metrics: outputs/paper_evaluation/metrics.json
+min_assets_per_date: 2
+calibration_lookback: 20
+promotion_thresholds:
+  min_return_ic: 0.03
+  min_return_rank_ic: 0.03
+  min_daily_positive_rate: 0.52
+  min_directional_accuracy: 0.525
+  min_pred_abs_return_multiple: 0.75
+  max_pred_abs_return_multiple: 1.50
+  max_positive_rate_gap: 0.15
+  max_invalid_ohlc_rate: 0.02
+  ridge_rank_ic_tolerance: 0.03
+experiments:
+  - name: small_greedy_adjusted
+    description: Kronos-small adjusted OHLCV greedy decoding.
+    overrides:
+      model_id: NeoQuasar/Kronos-small
+      target_column: Adj Close
+      use_adjusted_ohlc: true
+      temperature: 1.0
+      top_k: 1
+      top_p: 1.0
+      sample_count: 1
+    calibration_modes: [none]
+  - name: base_greedy_adjusted
+    description: Kronos-base adjusted OHLCV greedy decoding.
+    overrides:
+      model_id: NeoQuasar/Kronos-base
+      target_column: Adj Close
+      use_adjusted_ohlc: true
+      temperature: 1.0
+      top_k: 1
+      top_p: 1.0
+      sample_count: 1
+    calibration_modes: [none]
+  - name: base_raw_greedy_diagnostic
+    description: Kronos-base raw OHLCV greedy diagnostic.
+    selectable: false
+    overrides:
+      model_id: NeoQuasar/Kronos-base
+      target_column: Close
+      use_adjusted_ohlc: false
+      temperature: 1.0
+      top_k: 1
+      top_p: 1.0
+      sample_count: 1
+    calibration_modes: [none]
+  - name: small_t04_p08_s3
+    description: Kronos-small low-temperature nucleus sample-3.
+    overrides:
+      model_id: NeoQuasar/Kronos-small
+      target_column: Adj Close
+      use_adjusted_ohlc: true
+      temperature: 0.4
+      top_k: 0
+      top_p: 0.8
+      sample_count: 3
+    calibration_modes: [none, vol_rescale, vol_rescale_mean_center]
+  - name: base_t04_p08_s3
+    description: Kronos-base low-temperature nucleus sample-3.
+    overrides:
+      model_id: NeoQuasar/Kronos-base
+      target_column: Adj Close
+      use_adjusted_ohlc: true
+      temperature: 0.4
+      top_k: 0
+      top_p: 0.8
+      sample_count: 3
+    calibration_modes: [none, vol_rescale, vol_rescale_mean_center]
+  - name: small_t06_p09_s5
+    description: Kronos-small paper-ish nucleus sample-5.
+    overrides:
+      model_id: NeoQuasar/Kronos-small
+      target_column: Adj Close
+      use_adjusted_ohlc: true
+      temperature: 0.6
+      top_k: 0
+      top_p: 0.9
+      sample_count: 5
+    calibration_modes: [none, vol_rescale, vol_rescale_mean_center]
+  - name: base_t06_p09_s5
+    description: Kronos-base paper-ish nucleus sample-5.
+    overrides:
+      model_id: NeoQuasar/Kronos-base
+      target_column: Adj Close
+      use_adjusted_ohlc: true
+      temperature: 0.6
+      top_k: 0
+      top_p: 0.9
+      sample_count: 5
+    calibration_modes: [none, vol_rescale, vol_rescale_mean_center]
+  - name: small_t06_p09_s10
+    description: Kronos-small paper-ish nucleus sample-10.
+    overrides:
+      model_id: NeoQuasar/Kronos-small
+      target_column: Adj Close
+      use_adjusted_ohlc: true
+      temperature: 0.6
+      top_k: 0
+      top_p: 0.9
+      sample_count: 10
+    calibration_modes: [none, vol_rescale, vol_rescale_mean_center]

@@ -1,0 +1,11 @@
+# Core dependencies for the Kronos OHLCV forecasting scaffold.
+numpy>=1.22
+pandas>=2.0
+PyYAML>=6.0
+scipy>=1.6
+yfinance>=0.2.55
+
+# Modal accepts newer cbor2, but cbor2 6.x may require a Rust source build on
+# x86_64 macOS Python. This wheel-backed version avoids local compiler setup.
+cbor2==5.6.5
+modal>=1.0.0
