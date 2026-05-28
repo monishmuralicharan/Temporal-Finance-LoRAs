@@ -12,6 +12,7 @@ TICKER_API_ALIASES: dict[str, str] = {
 }
 
 KRONOS_COLUMNS = ["timestamps", "open", "high", "low", "close", "volume", "amount"]
+KRONOS_COMBINED_COLUMNS = ["ticker", "x_timestamp", "open", "high", "low", "close", "volume", "amount"]
 
 
 def bars_to_kronos_df(bars: pd.DataFrame, start: str | None = None, end: str | None = None) -> pd.DataFrame:
@@ -41,6 +42,21 @@ def bars_to_kronos_df(bars: pd.DataFrame, start: str | None = None, end: str | N
         }
     )
     return out.reset_index(drop=True)
+
+
+def bars_to_kronos_combined_row(
+    bars: pd.DataFrame,
+    ticker_label: str,
+    start: str,
+    end: str,
+) -> pd.DataFrame:
+    """Same as bars_to_kronos_df but with leading ticker column for combined CSV."""
+    kdf = bars_to_kronos_df(bars, start=start, end=end)
+    if kdf.empty:
+        return pd.DataFrame(columns=KRONOS_COMBINED_COLUMNS)
+    kdf = kdf.rename(columns={"timestamps": "x_timestamp"})
+    kdf.insert(0, "ticker", ticker_label)
+    return kdf
 
 
 def export_ticker_csv(

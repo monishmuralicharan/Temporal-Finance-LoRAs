@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_BASE = os.getenv("MASSIVE_API_BASE", "https://api.massive.com")
+# Free/starter plans are often 5 REST calls/min → 12s spacing (set in .env)
+DEFAULT_REQUEST_DELAY = float(os.getenv("MASSIVE_REQUEST_DELAY", "12.5"))
 
 
 class MassiveRestClient:
@@ -20,12 +22,12 @@ class MassiveRestClient:
         self,
         api_key: str | None = None,
         base_url: str = DEFAULT_BASE,
-        request_delay: float = 0.35,
-        max_retries: int = 6,
+        request_delay: float | None = None,
+        max_retries: int = 8,
     ):
         self.api_key = api_key or os.environ["MASSIVE_API_KEY"]
         self.base_url = base_url.rstrip("/")
-        self.request_delay = request_delay
+        self.request_delay = request_delay if request_delay is not None else DEFAULT_REQUEST_DELAY
         self.max_retries = max_retries
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {self.api_key}"})
@@ -34,8 +36,9 @@ class MassiveRestClient:
         for attempt in range(self.max_retries):
             resp = self.session.get(url, params=params, timeout=60)
             if resp.status_code == 429:
-                wait = float(resp.headers.get("Retry-After", 2 ** attempt))
-                time.sleep(min(wait, 60))
+                # Honor API backoff; default ~60s if header missing on 5/min plans
+                wait = float(resp.headers.get("Retry-After", max(60, self.request_delay * 2)))
+                time.sleep(wait)
                 continue
             resp.raise_for_status()
             time.sleep(self.request_delay)
@@ -91,6 +94,30 @@ class MassiveRestClient:
         df = pd.DataFrame(rows).drop_duplicates("date").sort_values("date")
         df["ticker"] = ticker
         return df.reset_index(drop=True)
+
+    def get_grouped_daily(self, date: str, adjusted: bool = True) -> pd.DataFrame:
+        """All U.S. stocks OHLCV for one trading date (for liquidity ranking)."""
+        url = f"{self.base_url}/v2/aggs/grouped/locale/us/market/stocks/{date}"
+        params = {"adjusted": str(adjusted).lower()}
+        resp = self._get_with_retry(url, params)
+        payload = resp.json()
+        if payload.get("status") not in ("OK", "DELAYED"):
+            raise RuntimeError(f"grouped {date}: {payload.get('status')}")
+        rows = []
+        for bar in payload.get("results") or []:
+            if bar.get("otc"):
+                continue
+            rows.append(
+                {
+                    "ticker": bar["T"],
+                    "close": bar["c"],
+                    "volume": bar["v"],
+                    "open": bar["o"],
+                    "high": bar["h"],
+                    "low": bar["l"],
+                }
+            )
+        return pd.DataFrame(rows)
 
     def iter_daily_bars(
         self,

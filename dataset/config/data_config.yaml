@@ -45,8 +45,11 @@ features:
   market_proxy_ticker: SPY
 
 export:
-  start_date: "2025-01-02"
-  end_date: "2026-04-30"
+  start_date: "2014-01-02"
+  end_date: null   # null = today (set in scripts)
+  universe_size: 300
+  universe_file: data/universe/top_liquid_300.txt
+  combined_csv: data/kronos/combined/all_tickers_combined.csv
 
 paths:
   raw_bars_dir: data/raw/bars
@@ -54,6 +57,7 @@ paths:
   processed_dir: data/processed
   kronos_dir: data/kronos/by_ticker
   kronos_manifest: data/kronos/manifest.csv
+  kronos_combined_dir: data/kronos/combined
 
 massive:
   api_base: https://api.massive.com
