@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from temporal_finance.evaluation import compute_metrics
+from temporal_finance.evaluation import compute_metrics, return_column_names
 
 
 @dataclass
@@ -37,8 +37,10 @@ def evaluate_kronos_output(
         "paired_series": _compute_paired_series_metrics(frame),
         "ohlc_validity": _compute_ohlc_validity(frame),
     }
-    if {"pred_5d_return", "actual_5d_return"}.issubset(frame.columns):
-        return_frame = frame.dropna(subset=["pred_5d_return", "actual_5d_return"])
+    return_columns = _maybe_return_columns(frame)
+    if return_columns is not None:
+        pred_column, actual_column = return_columns
+        return_frame = frame.dropna(subset=[pred_column, actual_column])
         if not return_frame.empty:
             metrics["return_metrics"] = compute_metrics(return_frame)
             metrics["daily_cross_section"] = _summarize_daily_metrics(
@@ -57,16 +59,20 @@ def compute_daily_cross_section_metrics(
     predictions: pd.DataFrame,
     min_assets_per_date: int = 2,
 ) -> pd.DataFrame:
-    required = {"ticker", "date", "pred_5d_return", "actual_5d_return"}
+    required = {"ticker", "date"}
     if not required.issubset(predictions.columns):
         return pd.DataFrame()
+    return_columns = _maybe_return_columns(predictions)
+    if return_columns is None:
+        return pd.DataFrame()
+    pred_column, actual_column = return_columns
     rows = []
     for date, group in predictions.groupby("date", sort=True):
-        group = group.dropna(subset=["pred_5d_return", "actual_5d_return"])
+        group = group.dropna(subset=[pred_column, actual_column])
         if group["ticker"].nunique() < min_assets_per_date:
             continue
-        pred = group["pred_5d_return"].to_numpy(dtype=float)
-        actual = group["actual_5d_return"].to_numpy(dtype=float)
+        pred = group[pred_column].to_numpy(dtype=float)
+        actual = group[actual_column].to_numpy(dtype=float)
         rows.append(
             {
                 "date": date,
@@ -96,17 +102,20 @@ def compute_group_metrics(
             keys = (keys,)
         row = dict(zip(available, keys))
         row["row_count"] = int(len(group))
-        if {"pred_5d_return", "actual_5d_return"}.issubset(group.columns):
-            clean = group.dropna(subset=["pred_5d_return", "actual_5d_return"])
+        return_columns = _maybe_return_columns(group)
+        if return_columns is not None:
+            pred_column, actual_column = return_columns
+            clean = group.dropna(subset=[pred_column, actual_column])
             if not clean.empty:
+                group_return_metrics = compute_metrics(clean)
                 row.update(
                     {
-                        "return_mae": compute_metrics(clean)["mae"],
-                        "directional_accuracy": compute_metrics(clean)[
+                        "return_mae": group_return_metrics["mae"],
+                        "directional_accuracy": group_return_metrics[
                             "directional_accuracy"
                         ],
-                        "pearson_ic": compute_metrics(clean)["pearson_ic"],
-                        "spearman_rank_ic": compute_metrics(clean)[
+                        "pearson_ic": group_return_metrics["pearson_ic"],
+                        "spearman_rank_ic": group_return_metrics[
                             "spearman_rank_ic"
                         ],
                     }
@@ -129,7 +138,7 @@ def run_kronos_output_evaluation(
         group_columns=group_columns,
     )
     daily_metrics = pd.DataFrame()
-    if {"pred_5d_return", "actual_5d_return"}.issubset(predictions.columns):
+    if _maybe_return_columns(predictions) is not None:
         daily_metrics = compute_daily_cross_section_metrics(
             _normalize_predictions(predictions),
             min_assets_per_date=min_assets_per_date,
@@ -149,6 +158,13 @@ def run_kronos_output_evaluation(
         daily_metrics=daily_metrics,
         group_metrics=group_metrics,
     )
+
+
+def _maybe_return_columns(predictions: pd.DataFrame):
+    try:
+        return return_column_names(predictions)
+    except KeyError:
+        return None
 
 
 def _normalize_predictions(predictions: pd.DataFrame) -> pd.DataFrame:

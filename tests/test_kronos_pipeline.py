@@ -53,6 +53,21 @@ def test_run_kronos_checkpoint4_writes_outputs(tmp_path):
     assert set(["pred_open_t5", "pred_volume_t5"]).issubset(
         result.predictions.columns
     )
+    assert set(
+        [
+            "forecast_horizon",
+            "pred_return",
+            "actual_return",
+            "pred_close_target",
+            "actual_close_target",
+            "pred_open_target",
+            "pred_volume_target",
+        ]
+    ).issubset(result.predictions.columns)
+    assert set(result.predictions["forecast_horizon"]) == {5}
+    assert result.predictions["pred_return"].equals(
+        result.predictions["pred_5d_return"]
+    )
 
 
 def test_run_kronos_checkpoint4_emits_progress(tmp_path):

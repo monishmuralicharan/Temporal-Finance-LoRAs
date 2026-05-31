@@ -1,0 +1,35 @@
+name: kronos_dataset_top100_context512_s3_base_selection
+stage: dataset_top100_context512_s3
+base_config: configs/kronos_dataset_top100_context512_s3_smoke.yaml
+output_dir: outputs/kronos_base_selection/dataset_top100_context512_s3
+enforce_ridge_gate: false
+references: {}
+min_assets_per_date: 25
+calibration_lookback: 20
+promotion_thresholds:
+  min_return_ic: 0.03
+  min_return_rank_ic: 0.03
+  min_daily_positive_rate: 0.52
+  min_directional_accuracy: 0.525
+  min_pred_abs_return_multiple: 0.5
+  max_pred_abs_return_multiple: 2.0
+  max_positive_rate_gap: 0.2
+  max_invalid_ohlc_rate: 0.03
+  ridge_rank_ic_tolerance: 0.03
+experiments:
+- name: base_t06_p09_s3_context512
+  description: Kronos-base sample-3 on top-100 dataset-branch daily OHLCVA with 512-day
+    context.
+  overrides:
+    model_id: NeoQuasar/Kronos-base
+    target_column: close
+    use_adjusted_ohlc: false
+    temperature: 0.6
+    top_k: 0
+    top_p: 0.9
+    sample_count: 3
+    batch_size: 16
+  calibration_modes:
+  - none
+  - vol_rescale
+  - vol_rescale_mean_center

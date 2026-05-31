@@ -1,0 +1,76 @@
+data_dir: dataset/data/kronos/combined_by_ticker
+output_dir: outputs/temporal_lora_signal_run_w1_sampling_fix
+universe_file: dataset/data/universe/top_liquid_300.txt
+ticker_limit: 100
+model_id: NeoQuasar/Kronos-small
+tokenizer_id: NeoQuasar/Kronos-Tokenizer-base
+context_length: 512
+forecast_horizon: 1
+eval_stride: 1
+device: auto
+temperature: 0.6
+top_k: 0
+top_p: 0.9
+sample_count: 10
+clip: 5.0
+random_seed: 42
+calibration_mode: vol_rescale_mean_center
+calibration_lookback: 20
+min_assets_per_date: 2
+ensemble_weights:
+  slow: 0.25
+  medium: 0.45
+  fast: 0.3
+adapters:
+  slow:
+    rank: 8
+    alpha: 16
+    dropout: 0.05
+    learning_rate: 0.0001
+    weight_decay: 0.01
+    epochs: 3
+    batch_size: 32
+    train_stride: 2
+    max_examples: 12000
+    patience: 1
+  medium:
+    rank: 8
+    alpha: 16
+    dropout: 0.05
+    learning_rate: 0.0001
+    weight_decay: 0.01
+    epochs: 3
+    batch_size: 32
+    train_stride: 1
+    max_examples: 6000
+    patience: 1
+  fast:
+    rank: 8
+    alpha: 16
+    dropout: 0.05
+    learning_rate: 0.0001
+    weight_decay: 0.01
+    epochs: 3
+    batch_size: 32
+    train_stride: 1
+    max_examples: 3000
+    patience: 1
+windows:
+- window_id: W1
+  slow_train_start: 2021-05-28
+  slow_train_end: 2024-12-31
+  medium_trading_days: 63
+  fast_trading_days: 20
+  validation_start: 2025-01-02
+  validation_end: 2025-02-28
+target_module_prefixes:
+- transformer
+- dep_layer
+exclude_module_keywords:
+- embedding
+- time_emb
+- head
+- tokenizer
+modal_gpu_seconds_price: 0.000222
+budget_cap_usd: 75
+include_shuffled_control: false

@@ -1,0 +1,35 @@
+name: kronos_dataset_common100_context512_s10_stride5_base_selection
+stage: dataset_common100_context512_s10_stride5
+base_config: configs/kronos_dataset_common100_context512_s10_smoke.yaml
+output_dir: outputs/kronos_base_selection/dataset_common100_context512_s10_stride5
+enforce_ridge_gate: false
+references: {}
+min_assets_per_date: 25
+calibration_lookback: 20
+promotion_thresholds:
+  min_return_ic: 0.03
+  min_return_rank_ic: 0.03
+  min_daily_positive_rate: 0.52
+  min_directional_accuracy: 0.525
+  min_pred_abs_return_multiple: 0.5
+  max_pred_abs_return_multiple: 2.0
+  max_positive_rate_gap: 0.2
+  max_invalid_ohlc_rate: 0.03
+  ridge_rank_ic_tolerance: 0.03
+experiments:
+- name: base_t06_p09_s10_context512_common100_stride5
+  description: Kronos-base sample-10 on 100 common-stock dataset-branch daily OHLCVA files with 512-day context and stride-5 evaluation.
+  overrides:
+    model_id: NeoQuasar/Kronos-base
+    target_column: close
+    use_adjusted_ohlc: false
+    eval_stride: 5
+    temperature: 0.6
+    top_k: 0
+    top_p: 0.9
+    sample_count: 10
+    batch_size: 8
+  calibration_modes:
+  - none
+  - vol_rescale
+  - vol_rescale_mean_center

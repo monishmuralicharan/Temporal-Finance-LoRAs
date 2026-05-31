@@ -1,0 +1,64 @@
+# Continual-learning dataset configuration (Kronos + multi-timescale LoRA)
+
+universe:
+  # Liquid U.S. equities; override with data/universe/top_liquid_200.txt
+  size: 200
+  min_avg_dollar_volume: 50_000_000
+
+# Calendar for LoRA / continual-learning phase (post pretrain window)
+fetch:
+  start_date: "2025-01-02"   # first trading day of 2025
+  end_date: "2026-04-30"
+  # Extra history for rolling features (60d vol, 120d window, 5d forward target)
+  history_buffer_trading_days: 200
+
+sample:
+  lookback_days: 120
+  forward_days: 5
+
+splits:
+  # Rolling monthly chunks for continual-learning experiments
+  scheme: rolling_monthly
+  train_months: 2
+  val_months: 1
+  test_months: 1
+  # First sample label date (needs lookback + feature warmup before this)
+  first_label_date: "2025-04-07"
+
+features:
+  raw:
+    - open
+    - high
+    - low
+    - close
+    - volume
+  derived:
+    - daily_return
+    - log_return
+    - return_5d
+    - vol_20d
+    - vol_60d
+    - volume_zscore
+    - ma_distance_20
+    - drawdown
+    - market_return
+  market_proxy_ticker: SPY
+
+export:
+  start_date: "2014-01-02"
+  end_date: null   # null = today (set in scripts)
+  universe_size: 300
+  universe_file: data/universe/top_liquid_300.txt
+  combined_csv: data/kronos/combined/all_tickers_combined.csv
+
+paths:
+  raw_bars_dir: data/raw/bars
+  universe_file: data/universe/top_liquid_200.txt
+  processed_dir: data/processed
+  kronos_dir: data/kronos/by_ticker
+  kronos_manifest: data/kronos/manifest.csv
+  kronos_combined_dir: data/kronos/combined
+
+massive:
+  api_base: https://api.massive.com
+  s3_day_aggs_prefix: us_stocks_sip/day_aggs_v1

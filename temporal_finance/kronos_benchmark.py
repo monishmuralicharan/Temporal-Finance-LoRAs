@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from temporal_finance.evaluation import compute_metrics
+from temporal_finance.evaluation import compute_metrics, return_column_names
 from temporal_finance.kronos_config import (
     KronosCheckpoint4Config,
     KronosConfigurationError,
@@ -416,8 +416,9 @@ def calibrate_kronos_predictions(
     if mode == CALIBRATION_NONE:
         frame["calibration_mode"] = mode
         return frame
-    pred = pd.to_numeric(frame["pred_5d_return"], errors="coerce")
-    actual = pd.to_numeric(frame["actual_5d_return"], errors="coerce")
+    pred_column, actual_column = return_column_names(frame)
+    pred = pd.to_numeric(frame[pred_column], errors="coerce")
+    actual = pd.to_numeric(frame[actual_column], errors="coerce")
     calibrated = pred.copy()
     if mode in (CALIBRATION_MEAN_CENTER, CALIBRATION_VOL_RESCALE_MEAN_CENTER):
         bias = _rolling_prior_mean(pred - actual, frame, lookback).fillna(0.0)
@@ -428,9 +429,22 @@ def calibrate_kronos_predictions(
         factor = _safe_series_divide(actual_scale, pred_scale).clip(lower=0.25, upper=4.0)
         factor = factor.fillna(1.0)
         calibrated = calibrated * factor
-    frame["pred_5d_return"] = calibrated
-    frame["pred_close_t5"] = frame["last_context_close"] * (1.0 + calibrated)
-    _rescale_predicted_ohlc(frame, predictions["pred_close_t5"], frame["pred_close_t5"])
+    frame[pred_column] = calibrated
+    if "pred_5d_return" in frame.columns:
+        frame["pred_5d_return"] = calibrated
+    if "pred_return" in frame.columns:
+        frame["pred_return"] = calibrated
+    old_close_column = (
+        "pred_close_target"
+        if "pred_close_target" in predictions.columns
+        else "pred_close_t5"
+    )
+    new_close = frame["last_context_close"] * (1.0 + calibrated)
+    if "pred_close_target" in frame.columns:
+        frame["pred_close_target"] = new_close
+    if "pred_close_t5" in frame.columns:
+        frame["pred_close_t5"] = new_close
+    _rescale_predicted_ohlc(frame, predictions[old_close_column], new_close)
     frame["calibration_mode"] = mode
     return frame
 
@@ -779,6 +793,8 @@ def _config_metric_payload(config: KronosCheckpoint4Config) -> Dict[str, object]
         "top_p": config.top_p,
         "kronos_sample_count": config.sample_count,
         "use_adjusted_ohlc": config.use_adjusted_ohlc,
+        "data_source": config.data_source,
+        "local_data_dir": config.local_data_dir,
         "batch_size": config.batch_size,
     }
 
@@ -829,7 +845,14 @@ def _rescale_predicted_ohlc(
 ) -> None:
     ratio = _safe_series_divide(new_close, pd.to_numeric(old_close, errors="coerce"))
     ratio = ratio.fillna(1.0)
-    for column in ("pred_open_t5", "pred_high_t5", "pred_low_t5"):
+    for column in (
+        "pred_open_t5",
+        "pred_high_t5",
+        "pred_low_t5",
+        "pred_open_target",
+        "pred_high_target",
+        "pred_low_target",
+    ):
         if column in frame.columns:
             frame[column] = pd.to_numeric(frame[column], errors="coerce") * ratio
 

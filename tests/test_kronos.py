@@ -34,3 +34,29 @@ def test_build_kronos_kline_frame_adjusts_ohlc_to_adj_close():
     assert frame["amount"].iloc[0] == pytest.approx(
         np.mean([50.0, 55.0, 45.0, 50.0]) * 1000.0
     )
+
+
+def test_build_kronos_kline_frame_accepts_native_ohlcva():
+    history = pd.DataFrame(
+        {
+            "open": [10.0, 11.0],
+            "high": [12.0, 13.0],
+            "low": [9.0, 10.0],
+            "close": [11.0, 12.0],
+            "volume": [1000.0, 1100.0],
+            "amount": [11000.0, 13200.0],
+        },
+        index=pd.bdate_range("2025-01-01", periods=2),
+    )
+
+    frame = build_kronos_kline_frame(history, target_column="close")
+
+    assert list(frame.columns) == [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "amount",
+    ]
+    assert frame["amount"].iloc[1] == pytest.approx(13200.0)

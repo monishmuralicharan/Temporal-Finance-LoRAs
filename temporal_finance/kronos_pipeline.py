@@ -7,7 +7,7 @@ from typing import Callable, Dict, Iterable, List, Optional
 
 import pandas as pd
 
-from temporal_finance.data import load_yfinance_ohlcv
+from temporal_finance.data import load_local_kronos_ohlcva, load_yfinance_ohlcv
 from temporal_finance.evaluation import compute_metrics, compute_simple_return
 from temporal_finance.kronos import KronosForecaster, build_kronos_kline_frame
 from temporal_finance.kronos_config import KronosCheckpoint4Config
@@ -92,6 +92,8 @@ def run_kronos_checkpoint4(
             "top_p": config.top_p,
             "kronos_sample_count": config.sample_count,
             "use_adjusted_ohlc": config.use_adjusted_ohlc,
+            "data_source": config.data_source,
+            "local_data_dir": config.local_data_dir,
         }
     )
     predictions_path, metrics_path, per_ticker_metrics_path = _write_outputs(
@@ -121,6 +123,13 @@ def _resolve_history(
                 "No provided OHLCV history for ticker {0}.".format(ticker)
             )
         return histories[ticker]
+    if config.data_source == "local_kronos_csv":
+        return load_local_kronos_ohlcva(
+            ticker=ticker,
+            data_dir=str(config.local_data_dir),
+            start_date=config.start_date,
+            end_date=config.end_date,
+        )
     return load_yfinance_ohlcv(
         ticker=ticker,
         start_date=config.start_date,
@@ -185,33 +194,41 @@ def _run_ticker_windows(
 
         forecasts = forecaster.forecast_batch(contexts, x_timestamps, y_timestamps)
         for window, forecast in zip(batch_windows, forecasts):
-            pred_close_t5 = float(forecast["close"].iloc[config.forecast_horizon - 1])
+            horizon_index = config.forecast_horizon - 1
+            pred_close_target = float(forecast["close"].iloc[horizon_index])
+            pred_open_target = float(forecast["open"].iloc[horizon_index])
+            pred_high_target = float(forecast["high"].iloc[horizon_index])
+            pred_low_target = float(forecast["low"].iloc[horizon_index])
+            pred_volume_target = float(forecast["volume"].iloc[horizon_index])
+            pred_return = compute_simple_return(
+                window.last_context_close, pred_close_target
+            )
+            actual_return = compute_simple_return(
+                window.last_context_close, window.actual_close_t5
+            )
             rows.append(
                 {
                     "ticker": ticker,
                     "date": window.context_end_date.strftime("%Y-%m-%d"),
                     "target_date": window.target_date.strftime("%Y-%m-%d"),
+                    "forecast_horizon": config.forecast_horizon,
                     "last_context_close": window.last_context_close,
-                    "pred_close_t5": pred_close_t5,
+                    "pred_close_target": pred_close_target,
+                    "actual_close_target": window.actual_close_t5,
+                    "pred_return": pred_return,
+                    "actual_return": actual_return,
+                    "pred_open_target": pred_open_target,
+                    "pred_high_target": pred_high_target,
+                    "pred_low_target": pred_low_target,
+                    "pred_volume_target": pred_volume_target,
+                    "pred_close_t5": pred_close_target,
                     "actual_close_t5": window.actual_close_t5,
-                    "pred_5d_return": compute_simple_return(
-                        window.last_context_close, pred_close_t5
-                    ),
-                    "actual_5d_return": compute_simple_return(
-                        window.last_context_close, window.actual_close_t5
-                    ),
-                    "pred_open_t5": float(
-                        forecast["open"].iloc[config.forecast_horizon - 1]
-                    ),
-                    "pred_high_t5": float(
-                        forecast["high"].iloc[config.forecast_horizon - 1]
-                    ),
-                    "pred_low_t5": float(
-                        forecast["low"].iloc[config.forecast_horizon - 1]
-                    ),
-                    "pred_volume_t5": float(
-                        forecast["volume"].iloc[config.forecast_horizon - 1]
-                    ),
+                    "pred_5d_return": pred_return,
+                    "actual_5d_return": actual_return,
+                    "pred_open_t5": pred_open_target,
+                    "pred_high_t5": pred_high_target,
+                    "pred_low_t5": pred_low_target,
+                    "pred_volume_t5": pred_volume_target,
                 }
             )
     return rows

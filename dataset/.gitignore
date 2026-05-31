@@ -1,0 +1,15 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+data/raw/
+data/processed/
+data/cache/
+*.parquet.tmp
+.DS_Store
+.ipynb_checkpoints/

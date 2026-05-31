@@ -79,6 +79,18 @@ def build_kronos_kline_frame(
     if getattr(history.index, "tz", None) is not None:
         history.index = history.index.tz_localize(None)
 
+    lower_columns = {str(column).lower(): column for column in history.columns}
+    if all(column in lower_columns for column in KRONOS_COLUMNS):
+        frame = pd.DataFrame(index=history.index)
+        for column in KRONOS_COLUMNS:
+            frame[column] = pd.to_numeric(
+                history[lower_columns[column]], errors="coerce"
+            )
+        frame = frame.replace([np.inf, -np.inf], np.nan).dropna()
+        if frame.empty:
+            raise RuntimeError("No usable Kronos K-line rows after preprocessing.")
+        return frame[KRONOS_COLUMNS]
+
     required = ["Open", "High", "Low", "Close", "Volume", target_column]
     missing = [column for column in required if column not in history.columns]
     if missing:

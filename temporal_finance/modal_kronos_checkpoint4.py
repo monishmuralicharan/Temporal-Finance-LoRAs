@@ -76,6 +76,11 @@ IMAGE = (
             "HF_HOME": DEFAULT_KRONOS_MODAL_CACHE_DIR,
         }
     )
+    .add_local_dir(
+        "dataset/data/kronos",
+        remote_path="/root/dataset/data/kronos",
+        copy=True,
+    )
     .add_local_python_source("temporal_finance")
 )
 DOWNLOAD_IMAGE = IMAGE
@@ -223,6 +228,21 @@ def main() -> None:
         default="",
         help="Optional benchmark_summary.csv or promoted_run_names.txt to filter runs.",
     )
+    benchmark_parser.add_argument(
+        "--detach",
+        action="store_true",
+        help="Submit one raw benchmark run and write state for later collection.",
+    )
+
+    collect_parser = subparsers.add_parser(
+        "collect-benchmark",
+        help="Collect a detached benchmark call and materialize benchmark outputs.",
+    )
+    collect_parser.add_argument(
+        "--state",
+        required=True,
+        help="Path to detached_state.json written by run-benchmark --detach.",
+    )
 
     args = parser.parse_args()
 
@@ -246,7 +266,11 @@ def main() -> None:
             args.manifest,
             args.gpu,
             args.only_promoted_from,
+            detach=args.detach,
         )
+        return
+    if args.command == "collect-benchmark":
+        _collect_detached_benchmark(args.state)
         return
     parser.error("Unknown command: {0}".format(args.command))
 
@@ -394,11 +418,255 @@ def _run_experiments_remote(
     print(json.dumps({"outputs": {k: str(v) for k, v in paths.items()}}, indent=2))
 
 
-def _run_benchmark_remote(
+def _run_benchmark_detached(
     manifest_path: str,
     gpu: str,
     only_promoted_from: str = "",
 ) -> None:
+    manifest = load_kronos_benchmark_manifest(manifest_path)
+    base_config = load_kronos_checkpoint4_config(manifest.base_config_path)
+    output_root = Path(manifest.output_dir).resolve()
+    only_run_names = (
+        load_promoted_run_names(only_promoted_from)
+        if only_promoted_from
+        else None
+    )
+    executions = _selected_benchmark_executions(
+        manifest=manifest,
+        base_config=base_config,
+        output_root=output_root,
+        only_run_names=only_run_names,
+    )
+    if len(executions) != 1:
+        raise SystemExit(
+            "Detached benchmark mode requires exactly one selected raw experiment; "
+            "found {0}.".format(len(executions))
+        )
+
+    experiment, modes, experiment_config = executions[0]
+    remote_config = build_kronos_modal_run_config(experiment_config)
+    config_json = json.dumps(remote_config.to_dict(), sort_keys=True)
+    runner_cls = _runner_cls_for_gpu(gpu)
+
+    output_root.mkdir(parents=True, exist_ok=True)
+    with modal.enable_output():
+        with APP.run(detach=True):
+            runner = runner_cls(config_json=config_json)
+            call = runner.run.spawn()
+            state = _build_detached_benchmark_state(
+                manifest_path=manifest_path,
+                manifest=manifest,
+                experiment_name=experiment.name,
+                calibration_modes=modes,
+                gpu=gpu,
+                only_promoted_from=only_promoted_from,
+                function_call_id=_function_call_id(call),
+                function_call_dashboard_url=_safe_call_dashboard_url(call),
+                submitted_at_unix=time.time(),
+            )
+            state_path = _write_detached_benchmark_state(output_root, state)
+
+    print(
+        "Submitted detached benchmark experiment {0} ({1}).".format(
+            experiment.name,
+            ", ".join(modes),
+        )
+    )
+    print("Saved detached benchmark state to {0}".format(state_path))
+    print(
+        "Collect with: arch -arm64 ./.venv/bin/python -m "
+        "temporal_finance.modal_kronos_checkpoint4 collect-benchmark --state {0}".format(
+            state_path
+        )
+    )
+
+
+def _collect_detached_benchmark(state_path: str) -> None:
+    path = Path(state_path)
+    state = _load_detached_benchmark_state(path)
+    call = modal.FunctionCall.from_id(str(state["function_call_id"]))
+    artifacts = call.get()
+    paths = _collect_detached_benchmark_artifacts(
+        state=state,
+        artifacts=artifacts,
+        state_path=path,
+    )
+    print(
+        "Saved Kronos benchmark summary to {0}".format(
+            paths["benchmark_summary_csv"]
+        )
+    )
+    print(json.dumps({"outputs": {k: str(v) for k, v in paths.items()}}, indent=2))
+
+
+def _selected_benchmark_executions(
+    manifest,
+    base_config,
+    output_root: Path,
+    only_run_names=None,
+):
+    executions = []
+    for experiment in manifest.experiments:
+        modes = selected_calibration_modes(experiment, only_run_names)
+        if not modes:
+            continue
+        config = build_benchmark_config(base_config, experiment, output_root)
+        executions.append((experiment, modes, config))
+    return executions
+
+
+def _runner_cls_for_gpu(gpu: str):
+    if gpu != DEFAULT_KRONOS_MODAL_GPU:
+        return RemoteKronosCheckpoint4Runner.with_options(gpu=gpu)
+    return RemoteKronosCheckpoint4Runner
+
+
+def _function_call_id(call) -> str:
+    call_id = getattr(call, "object_id", None) or getattr(
+        call, "function_call_id", None
+    )
+    if not call_id:
+        raise RuntimeError("Detached Modal call did not expose a function call id.")
+    return str(call_id)
+
+
+def _safe_call_dashboard_url(call):
+    try:
+        return call.get_dashboard_url()
+    except Exception:
+        return None
+
+
+def _build_detached_benchmark_state(
+    manifest_path: str,
+    manifest,
+    experiment_name: str,
+    calibration_modes: list[str],
+    gpu: str,
+    only_promoted_from: str,
+    function_call_id: str,
+    function_call_dashboard_url,
+    submitted_at_unix: float,
+) -> dict:
+    return {
+        "version": 1,
+        "status": "submitted",
+        "manifest_path": manifest_path,
+        "output_root": str(Path(manifest.output_dir).resolve()),
+        "experiment_name": experiment_name,
+        "calibration_modes": calibration_modes,
+        "gpu": gpu,
+        "only_promoted_from": only_promoted_from,
+        "function_call_id": function_call_id,
+        "function_call_dashboard_url": function_call_dashboard_url,
+        "submitted_at_unix": submitted_at_unix,
+    }
+
+
+def _write_detached_benchmark_state(output_root: Path, state: dict) -> Path:
+    output_root.mkdir(parents=True, exist_ok=True)
+    path = output_root / "detached_state.json"
+    path.write_text(
+        json.dumps(state, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _load_detached_benchmark_state(path: Path) -> dict:
+    state = json.loads(path.read_text(encoding="utf-8"))
+    required = {
+        "version",
+        "manifest_path",
+        "experiment_name",
+        "calibration_modes",
+        "gpu",
+        "function_call_id",
+        "submitted_at_unix",
+    }
+    missing = sorted(required - set(state))
+    if missing:
+        raise SystemExit(
+            "Detached benchmark state is missing keys: {0}".format(
+                ", ".join(missing)
+            )
+        )
+    if int(state["version"]) != 1:
+        raise SystemExit(
+            "Unsupported detached benchmark state version: {0}".format(
+                state["version"]
+            )
+        )
+    return state
+
+
+def _collect_detached_benchmark_artifacts(
+    state: dict,
+    artifacts: dict,
+    state_path: Path | None = None,
+    collected_at_unix: float | None = None,
+) -> dict:
+    collected_at = time.time() if collected_at_unix is None else collected_at_unix
+    manifest = load_kronos_benchmark_manifest(str(state["manifest_path"]))
+    base_config = load_kronos_checkpoint4_config(manifest.base_config_path)
+    output_root = Path(manifest.output_dir).resolve()
+    references = load_benchmark_references(manifest.references)
+    experiment = next(
+        (
+            item
+            for item in manifest.experiments
+            if item.name == state["experiment_name"]
+        ),
+        None,
+    )
+    if experiment is None:
+        raise SystemExit(
+            "Detached benchmark experiment {0} is not in manifest {1}.".format(
+                state["experiment_name"],
+                state["manifest_path"],
+            )
+        )
+    config = build_benchmark_config(base_config, experiment, output_root)
+    runtime_seconds = collected_at - float(state["submitted_at_unix"])
+    records = materialize_remote_benchmark_artifacts(
+        manifest=manifest,
+        experiment=experiment,
+        config=config,
+        predictions_csv=artifacts["predictions_csv"],
+        metrics_json=artifacts["metrics_json"],
+        output_root=output_root,
+        references=references,
+        runtime_seconds=runtime_seconds,
+        modal_gpu=str(state["gpu"]),
+        only_calibration_modes=list(state["calibration_modes"]),
+    )
+    paths = write_benchmark_outputs(records, output_root)
+    state.update(
+        {
+            "status": "collected",
+            "collected_at_unix": collected_at,
+            "runtime_seconds": runtime_seconds,
+            "outputs": {key: str(value) for key, value in paths.items()},
+        }
+    )
+    if state_path is not None:
+        state_path.write_text(
+            json.dumps(state, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    return paths
+
+
+def _run_benchmark_remote(
+    manifest_path: str,
+    gpu: str,
+    only_promoted_from: str = "",
+    detach: bool = False,
+) -> None:
+    if detach:
+        _run_benchmark_detached(manifest_path, gpu, only_promoted_from)
+        return
+
     manifest = load_kronos_benchmark_manifest(manifest_path)
     base_config = load_kronos_checkpoint4_config(manifest.base_config_path)
     output_root = Path(manifest.output_dir).resolve()

@@ -4,6 +4,7 @@ from temporal_finance.kronos_modal_utils import (
     DEFAULT_KRONOS_MODAL_OUTPUT_DIR,
     KRONOS_UPSTREAM_COMMIT,
     build_kronos_modal_run_config,
+    _map_local_kronos_data_dir,
 )
 
 
@@ -30,3 +31,10 @@ def test_build_kronos_modal_run_config_overrides_remote_paths(tmp_path):
 
 def test_kronos_upstream_commit_is_pinned():
     assert len(KRONOS_UPSTREAM_COMMIT) == 40
+
+
+
+def test_map_local_kronos_data_dir_preserves_kronos_subdirectory():
+    assert _map_local_kronos_data_dir(
+        "dataset/data/kronos/combined_by_ticker"
+    ) == "/root/dataset/data/kronos/combined_by_ticker"

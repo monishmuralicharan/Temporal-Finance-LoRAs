@@ -36,6 +36,8 @@ class KronosCheckpoint4Config:
     random_seed: int = 42
     use_adjusted_ohlc: bool = True
     tickers: Optional[List[str]] = None
+    data_source: str = "yfinance"
+    local_data_dir: Optional[str] = None
 
     @classmethod
     def from_dict(cls, raw: Dict[str, Any]) -> "KronosCheckpoint4Config":
@@ -55,6 +57,8 @@ class KronosCheckpoint4Config:
             "random_seed": 42,
             "use_adjusted_ohlc": True,
             "tickers": None,
+            "data_source": "yfinance",
+            "local_data_dir": None,
         }
         expected = {
             "ticker",
@@ -79,6 +83,8 @@ class KronosCheckpoint4Config:
             "clip",
             "random_seed",
             "use_adjusted_ohlc",
+            "data_source",
+            "local_data_dir",
         }
         unknown = sorted(set(raw) - expected)
         if unknown:
@@ -142,6 +148,14 @@ class KronosCheckpoint4Config:
             raise KronosConfigurationError("sample_count must be positive.")
         if self.clip <= 0:
             raise KronosConfigurationError("clip must be positive.")
+        if self.data_source not in ("yfinance", "local_kronos_csv"):
+            raise KronosConfigurationError(
+                "data_source must be one of: yfinance, local_kronos_csv."
+            )
+        if self.data_source == "local_kronos_csv" and not self.local_data_dir:
+            raise KronosConfigurationError(
+                "local_data_dir is required for local_kronos_csv data_source."
+            )
 
     @property
     def effective_tickers(self) -> List[str]:

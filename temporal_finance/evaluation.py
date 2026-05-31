@@ -1,6 +1,6 @@
 """Metric helpers for checkpoint 4 outputs."""
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -14,8 +14,9 @@ def compute_simple_return(start_value: float, end_value: float) -> float:
 
 
 def compute_metrics(predictions: pd.DataFrame) -> Dict[str, Optional[float]]:
-    pred = predictions["pred_5d_return"].to_numpy(dtype=float)
-    actual = predictions["actual_5d_return"].to_numpy(dtype=float)
+    pred_column, actual_column = return_column_names(predictions)
+    pred = predictions[pred_column].to_numpy(dtype=float)
+    actual = predictions[actual_column].to_numpy(dtype=float)
     metrics = {
         "sample_count": int(len(pred)),
         "mse": float(np.mean(np.square(pred - actual))),
@@ -25,6 +26,17 @@ def compute_metrics(predictions: pd.DataFrame) -> Dict[str, Optional[float]]:
         "spearman_rank_ic": _safe_corr(pred, actual, method="spearman"),
     }
     return metrics
+
+
+def return_column_names(predictions: pd.DataFrame) -> Tuple[str, str]:
+    if {"pred_return", "actual_return"}.issubset(predictions.columns):
+        return "pred_return", "actual_return"
+    if {"pred_5d_return", "actual_5d_return"}.issubset(predictions.columns):
+        return "pred_5d_return", "actual_5d_return"
+    raise KeyError(
+        "Predictions must contain pred_return/actual_return or "
+        "pred_5d_return/actual_5d_return."
+    )
 
 
 def _safe_corr(

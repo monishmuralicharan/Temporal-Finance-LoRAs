@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from temporal_finance.evaluation import return_column_names
 from temporal_finance.kronos_config import KronosCheckpoint4Config
 
 PRED_ABS_RETURN_MAX_MULTIPLE = 2.0
@@ -244,10 +245,21 @@ def build_experiment_config(
 def compute_kronos_prediction_diagnostics(
     predictions: pd.DataFrame,
 ) -> Dict[str, Optional[float]]:
-    pred_return = predictions["pred_5d_return"].to_numpy(dtype=float)
-    actual_return = predictions["actual_5d_return"].to_numpy(dtype=float)
-    pred_close = predictions["pred_close_t5"].to_numpy(dtype=float)
-    actual_close = predictions["actual_close_t5"].to_numpy(dtype=float)
+    pred_column, actual_column = return_column_names(predictions)
+    pred_return = predictions[pred_column].to_numpy(dtype=float)
+    actual_return = predictions[actual_column].to_numpy(dtype=float)
+    pred_close_column = (
+        "pred_close_target"
+        if "pred_close_target" in predictions.columns
+        else "pred_close_t5"
+    )
+    actual_close_column = (
+        "actual_close_target"
+        if "actual_close_target" in predictions.columns
+        else "actual_close_t5"
+    )
+    pred_close = predictions[pred_close_column].to_numpy(dtype=float)
+    actual_close = predictions[actual_close_column].to_numpy(dtype=float)
 
     actual_abs_return_mean = float(np.mean(np.abs(actual_return)))
     pred_abs_return_mean = float(np.mean(np.abs(pred_return)))
@@ -529,13 +541,24 @@ def _record_to_json(record: KronosExperimentRecord) -> Dict[str, object]:
 
 
 def _count_invalid_ohlc(predictions: pd.DataFrame) -> int:
-    required = {"pred_open_t5", "pred_high_t5", "pred_low_t5", "pred_close_t5"}
-    if not required.issubset(predictions.columns):
-        return 0
-    high = predictions["pred_high_t5"].to_numpy(dtype=float)
-    low = predictions["pred_low_t5"].to_numpy(dtype=float)
-    open_ = predictions["pred_open_t5"].to_numpy(dtype=float)
-    close = predictions["pred_close_t5"].to_numpy(dtype=float)
+    if {
+        "pred_open_target",
+        "pred_high_target",
+        "pred_low_target",
+        "pred_close_target",
+    }.issubset(predictions.columns):
+        high = predictions["pred_high_target"].to_numpy(dtype=float)
+        low = predictions["pred_low_target"].to_numpy(dtype=float)
+        open_ = predictions["pred_open_target"].to_numpy(dtype=float)
+        close = predictions["pred_close_target"].to_numpy(dtype=float)
+    else:
+        required = {"pred_open_t5", "pred_high_t5", "pred_low_t5", "pred_close_t5"}
+        if not required.issubset(predictions.columns):
+            return 0
+        high = predictions["pred_high_t5"].to_numpy(dtype=float)
+        low = predictions["pred_low_t5"].to_numpy(dtype=float)
+        open_ = predictions["pred_open_t5"].to_numpy(dtype=float)
+        close = predictions["pred_close_t5"].to_numpy(dtype=float)
     invalid = (
         (high < np.maximum(open_, close))
         | (low > np.minimum(open_, close))
@@ -545,9 +568,14 @@ def _count_invalid_ohlc(predictions: pd.DataFrame) -> int:
 
 
 def _count_negative_volume(predictions: pd.DataFrame) -> int:
-    if "pred_volume_t5" not in predictions.columns:
+    volume_column = (
+        "pred_volume_target"
+        if "pred_volume_target" in predictions.columns
+        else "pred_volume_t5"
+    )
+    if volume_column not in predictions.columns:
         return 0
-    volume = predictions["pred_volume_t5"].to_numpy(dtype=float)
+    volume = predictions[volume_column].to_numpy(dtype=float)
     return int(np.sum(volume < 0))
 
 

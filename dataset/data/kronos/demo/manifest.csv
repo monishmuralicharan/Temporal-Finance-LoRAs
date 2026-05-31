@@ -1,0 +1,7 @@
+ticker,status,rows,start,end,file
+AAPL,ok,332,2025-01-02,2026-04-30,data/kronos/demo/AAPL.csv
+MSFT,ok,332,2025-01-02,2026-04-30,data/kronos/demo/MSFT.csv
+NVDA,ok,332,2025-01-02,2026-04-30,data/kronos/demo/NVDA.csv
+GOOGL,ok,332,2025-01-02,2026-04-30,data/kronos/demo/GOOGL.csv
+AMZN,ok,332,2025-01-02,2026-04-30,data/kronos/demo/AMZN.csv
+SPY_S&P500,ok,332,2025-01-02,2026-04-30,data/kronos/demo/SPY_S&P500.csv
